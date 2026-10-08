@@ -52,20 +52,45 @@ const utils = {
     getRelativeX: (event: PointerEvent | TouchEvent | MouseEvent, container: HTMLElement): number => {
         const rect = container.getBoundingClientRect();
         let clientX: number;
+        let clientY: number;
         if ('touches' in event) {
             // If TouchEvent, use changedTouches if touches is empty
             if (event.touches.length > 0) {
                 clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
             } else if (event.changedTouches && event.changedTouches.length > 0) {
                 clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
             } else {
                 // If both are not available, return 0 (should not happen normally)
                 clientX = 0;
+                clientY = 0;
             }
         } else {
             clientX = event.clientX;
+            clientY = event.clientY;
         }
-        return clientX - rect.left;
+        // The container may be rotated by CSS transforms on its ancestors (e.g. pseudo fullscreen on iPhone Safari),
+        // so measure the position along the container's own X axis instead of the screen X axis
+        let angle = 0;
+        for (let element: Element | null = container; element !== null; element = element.parentElement) {
+            const transform = getComputedStyle(element).transform;
+            if (transform && transform !== 'none') {
+                const matrix = new DOMMatrixReadOnly(transform);
+                angle += Math.atan2(matrix.b, matrix.a);
+            }
+        }
+        const quarterTurns = (((Math.round(angle / (Math.PI / 2)) % 4) + 4) % 4);
+        switch (quarterTurns) {
+            case 1:
+                return clientY - rect.top;
+            case 2:
+                return rect.right - clientX;
+            case 3:
+                return rect.bottom - clientY;
+            default:
+                return clientX - rect.left;
+        }
     },
 
     getScrollPosition(): { left: number; top: number } {
